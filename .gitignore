@@ -1,0 +1,16 @@
+# build output
+/dist/
+tunnel-server
+tunnel-client
+*.exe
+
+# runtime / secrets
+*.db
+*.db-wal
+*.db-shm
+*.env
+certs/
+
+# OS
+.DS_Store
+Thumbs.db

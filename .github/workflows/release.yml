@@ -1,0 +1,107 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - target: server-linux-amd64
+            goos: linux
+            goarch: amd64
+            package: tunnel-server
+          - target: server-linux-arm64
+            goos: linux
+            goarch: arm64
+            package: tunnel-server
+          - target: client-linux-amd64
+            goos: linux
+            goarch: amd64
+            package: tunnel-client
+          - target: client-linux-arm64
+            goos: linux
+            goarch: arm64
+            package: tunnel-client
+          - target: client-darwin-amd64
+            goos: darwin
+            goarch: amd64
+            package: tunnel-client
+          - target: client-darwin-arm64
+            goos: darwin
+            goarch: arm64
+            package: tunnel-client
+          - target: client-windows-amd64
+            goos: windows
+            goarch: amd64
+            package: tunnel-client
+          - target: client-windows-arm64
+            goos: windows
+            goarch: arm64
+            package: tunnel-client
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Test
+        run: go test ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags "-s -w -X github.com/migandhi/tunnel-software/internal/version.Version=${GITHUB_REF_NAME}"             -o "dist/tunnel-${{ matrix.target }}" "./cmd/${{ matrix.package }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Normalize filenames
+        run: |
+          cd dist
+          mv tunnel-server-linux-amd64 tunnel-server-linux-amd64 2>/dev/null || true
+          mv tunnel-server-linux-arm64 tunnel-server-linux-arm64 2>/dev/null || true
+          mv tunnel-client-linux-amd64 tunnel-client-linux-amd64 2>/dev/null || true
+          mv tunnel-client-linux-arm64 tunnel-client-linux-arm64 2>/dev/null || true
+          mv tunnel-client-darwin-amd64 tunnel-client-darwin-amd64 2>/dev/null || true
+          mv tunnel-client-darwin-arm64 tunnel-client-darwin-arm64 2>/dev/null || true
+          mv tunnel-client-windows-amd64 tunnel-client-windows-amd64.exe 2>/dev/null || true
+          mv tunnel-client-windows-arm64 tunnel-client-windows-arm64.exe 2>/dev/null || true
+          sha256sum * > SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*
+          generate_release_notes: true

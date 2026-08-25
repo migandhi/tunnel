@@ -1,0 +1,13 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Token issued</title>
+<style>body{font-family:system-ui,sans-serif;margin:3em;max-width:50em}code{background:#1c2333;color:#8ecaff;padding:10px;border-radius:6px;display:block;word-break:break-all;margin:8px 0;font-size:15px}.warn{background:#fef7e0;border:1px solid #e37400;padding:10px;border-radius:6px}</style>
+</head><body>
+<h1>Token for <em>{{.User.Subdomain}}</em></h1>
+<p class="warn"><strong>This token is shown only once.</strong> Only its hash is stored on the server. Copy it now and deliver it over a secure channel.</p>
+<code>{{.Token}}</code>
+<h3>User instructions</h3>
+<p>HTTP public URL: <strong>{{.Scheme}}://{{.User.Subdomain}}.{{.Domain}}</strong></p>
+<code>tunnel-client http 8000 --server {{.Domain}}:7000 --token {{.Token}}</code>
+{{if .User.TCPPort}}<p>TCP endpoint: <strong>{{.Domain}}:{{.User.TCPPort}}</strong></p><code>tunnel-client tcp 25565 --server {{.Domain}}:7000 --token {{.Token}}</code>{{end}}
+<p><a href="/">&larr; back to dashboard</a></p>
+</body></html>

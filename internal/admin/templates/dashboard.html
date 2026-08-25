@@ -1,0 +1,40 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Tunnel Admin</title>
+<style>
+body{font-family:system-ui,sans-serif;margin:2em;background:#f6f7f9;color:#1c2333}
+h1{font-size:1.4em}table{border-collapse:collapse;width:100%;background:#fff;font-size:14px}
+th,td{border:1px solid #dde1e8;padding:8px;text-align:left;vertical-align:top}th{background:#1c2333;color:#fff}
+.box{background:#fff;border:1px solid #dde1e8;border-radius:8px;padding:16px;margin-bottom:20px;max-width:900px}
+input,select,button{padding:6px;margin:2px;font-size:13px}button{cursor:pointer;border:1px solid #888;border-radius:4px;background:#eef}
+.good{color:#188038;font-weight:600}.bad{color:#c5221f;font-weight:600}.warn{color:#e37400;font-weight:600}.muted{color:#5f6368}
+.msg{background:#e6f4ea;border:1px solid #188038;padding:8px;border-radius:6px;margin-bottom:12px;max-width:720px}
+form.inline{display:inline}code{background:#eef;padding:1px 4px;border-radius:3px}.bar{background:#eee;border-radius:4px;height:8px;width:120px;overflow:hidden}.bar>div{background:#4f8ef7;height:8px}
+</style></head><body>
+<h1>Tunnel Admin <small class="muted">({{.Version}} · *.{{.Domain}})</small></h1>
+{{if .Msg}}<div class="msg">{{.Msg}}</div>{{end}}
+<div class="box"><h3>Create user</h3>
+<form method="POST" action="/users">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+<input type="email" name="email" placeholder="email (optional)">
+<input type="text" name="subdomain" placeholder="subdomain" required pattern="[a-z0-9]([a-z0-9-]*[a-z0-9])?">
+<select name="plan"><option>free</option><option>basic</option><option>pro</option><option>custom</option></select>
+<input type="number" name="days" value="30" min="1" style="width:4em"> days
+<input type="number" name="limit_gb" placeholder="GB limit (0/blank = unlimited)" min="0" style="width:14em">
+<select name="tcp"><option value="none">no TCP port</option><option value="auto">auto-assign TCP port</option></select>
+<button type="submit">Create & show token</button>
+</form></div>
+<table><tr><th>ID</th><th>Subdomain / URL</th><th>Email</th><th>Plan</th><th>TCP</th><th>Bandwidth</th><th>Expires</th><th>Status</th><th>Actions</th></tr>
+{{range .Users}}<tr>
+<td>{{.ID}}</td><td><a href="{{.URL}}" target="_blank" rel="noopener">{{.Subdomain}}</a></td><td>{{.Email}}</td><td>{{.Plan}}</td>
+<td>{{if .TCPPort}}{{.TCPPort}}{{else}}—{{end}}</td><td>{{.Used}} / {{.Limit}}{{if gt .UsedPct 0}}<div class="bar"><div style="width:{{.UsedPct}}%"></div></div>{{.UsedPct}}%{{end}}</td>
+<td>{{.Expires}} <span class="muted">({{.DaysLeft}}d)</span></td><td class="{{.StatusClass}}">{{.Status}}</td><td>
+<form class="inline" method="POST" action="/users/renew"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="id" value="{{.ID}}"><input type="number" name="days" value="30" min="1" style="width:3.5em"><label><input type="checkbox" name="reset_bandwidth" checked>reset BW</label><button>Renew</button></form>
+<form class="inline" method="POST" action="/users/reset-token"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="id" value="{{.ID}}"><button>New token</button></form>
+<form class="inline" method="POST" action="/users/reset-bandwidth"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="id" value="{{.ID}}"><button>Reset BW</button></form>
+<form class="inline" method="POST" action="/users/set-limit"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="id" value="{{.ID}}"><input type="number" name="limit_gb" min="0" style="width:3.5em" placeholder="GB"><button>Set limit</button></form>
+{{if eq .Status "Disabled"}}<form class="inline" method="POST" action="/users/enable"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="id" value="{{.ID}}"><button>Enable</button></form>
+{{else}}<form class="inline" method="POST" action="/users/disable"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="id" value="{{.ID}}"><button>Disable</button></form>{{end}}
+<form class="inline" method="POST" action="/users/delete" onsubmit="return confirm('Permanently delete {{.Subdomain}}?')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="id" value="{{.ID}}"><button style="background:#fdd">Delete</button></form>
+</td></tr>{{end}}</table>
+<p class="muted"><a href="/metrics">metrics (JSON)</a> · <a href="/audit">audit log</a></p>
+</body></html>

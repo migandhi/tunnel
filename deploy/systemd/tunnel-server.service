@@ -1,0 +1,31 @@
+[Unit]
+Description=Self-hosted tunnel server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tunnel
+Group=tunnel
+EnvironmentFile=/etc/tunnel/server.env
+ExecStart=/usr/local/bin/tunnel-server run
+Restart=always
+RestartSec=3
+LimitNOFILE=65536
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/tunnel
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryMax=768M
+
+[Install]
+WantedBy=multi-user.target
