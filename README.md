@@ -1,190 +1,287 @@
-# tunnel
+# Tunnel
 
 A lightweight self-hosted HTTP/HTTPS and TCP tunnel service for a small VPS.
 
-It is designed for authorized development, demos, homelabs, IoT, game servers,
-and other services that need an outbound-only client connection through NAT or
-CGNAT.
+Tunnel allows a machine behind NAT, CGNAT, or a restrictive firewall to expose
+authorized local services through a public VPS using an outbound connection.
 
-> **Status:** production-oriented codebase, but you must run the automated tests,
-> compile it, and perform the integration checklist before putting real users on it.
+Designed for development, demos, homelabs, IoT, game servers, internal tools,
+temporary public endpoints, and small self-hosted services.
+
+> **Status:** Production-oriented and successfully tested on Ubuntu 24.04 with
+> HTTP/HTTPS and TCP tunnels. Review the security and operational requirements
+> before exposing services to untrusted users.
+
+## Features
+
+- HTTP/HTTPS tunneling
+- TCP tunneling
+- Outbound-only client connection
+- Automatic HTTPS with Let's Encrypt
+- Per-user authentication tokens
+- SHA-256 token storage
+- Admin web interface
+- Account enable/disable and expiry
+- Bandwidth limits and accounting
+- TCP port allocation
+- Token and bandwidth reset
+- SQLite storage
+- TLS control connection
+- Automatic client reconnect
+- WebSocket support through HTTP proxying
+- systemd service support
+- Linux, Windows and macOS clients
+- Linux server binaries
+- SHA-256 release checksums
 
 ## Architecture
 
 ```text
-Public HTTPS :443
-      |
-      v
- tunnel-server
-      |
-      | TLS control connection :7000
-      v
- tunnel-client
-      |
-      v
-127.0.0.1:<local-port>
+                         Internet
+                            |
+                    +-------v--------+
+                    |  Tunnel Server |
+                    |      VPS      |
+                    +-------+-------+
+                            |
+             +--------------+--------------+
+             |                             |
+        HTTPS :443                    Control :7000
+             |                             |
+             |                     TLS connection
+             |                             |
+             |                      +------v------+
+             |                      |Tunnel Client|
+             |                      +------+------+
+             |                             |
+             |                       127.0.0.1:8000
+             |                             |
+             +-----------------------------+
 ```
 
-HTTP tunnels use a per-user subdomain:
+### HTTP tunnel
 
 ```text
 https://myapp.tun.example.com
+              |
+              v
+       Tunnel Server
+              |
+              v
+       Tunnel Client
+              |
+              v
+     127.0.0.1:8000
 ```
 
-TCP tunnels use an assigned port:
+### TCP tunnel
 
 ```text
-tun.example.com:20001
+tun.example.com:20000
+          |
+          v
+    Tunnel Server
+          |
+          v
+    Tunnel Client
+          |
+          v
+  127.0.0.1:25565
 ```
 
-The client makes an outbound connection, so the local machine does not need an
-inbound firewall port.
+The client makes an outbound connection to the server. The local machine does
+not need to expose an inbound firewall port.
 
 ## Repository
 
-This package is preconfigured for the repository:
+GitHub: https://github.com/migandhi/tunnel
 
-`https://github.com/migandhi/tunnel-software`
+Current release: **v1.0.1**
 
-If you choose a different GitHub repository, change the module path in `go.mod`,
-the internal import paths, and the repository name in `deploy/install.sh` and
-`deploy/upgrade.sh`.
+Go module:
+
+```text
+github.com/migandhi/tunnel-software
+```
+
+> The GitHub repository name and Go module path are currently different.
+> The module path is used by the Go source code and release build process.
 
 ## Requirements
 
-### VPS
+### Server
 
-- Ubuntu 20.04+ recommended
-- 1 GB RAM is suitable for a small deployment
-- Public IPv4
-- Ports 80, 443, 7000 and 20000-20249 TCP
-- A domain you control
+- Ubuntu 24.04 LTS recommended
+- 1 GB RAM or more
+- Public IPv4 address
+- Domain name
+- Root SSH access for installation
+- Ports 80, 443 and 7000
+- TCP ports 20000-20249 for TCP tunnels
 
-### DNS
+### Client
 
-For `tun.example.com` pointing to VPS `203.0.113.10`:
+Supported platforms:
+
+- Windows amd64
+- Windows arm64
+- Linux amd64
+- Linux arm64
+- macOS amd64
+- macOS arm64
+
+## DNS Setup
+
+Assume the tunnel server is `tun.example.com` and the VPS IP is
+`203.0.113.10`.
+
+Create:
 
 ```text
 A    tun.example.com       203.0.113.10
 A    *.tun.example.com     203.0.113.10
 ```
 
-Set:
+The wildcard record is required for HTTP tunnel subdomains.
+
+For example:
 
 ```text
+https://myapp.tun.example.com
+```
+
+must resolve to the VPS.
+
+Set:
+
+```ini
 TUNNEL_DOMAIN=tun.example.com
 ```
 
-Do not expose the admin port 9800 publicly.
+## Download a Release
 
-## Build on Windows
+Download the appropriate client from:
 
-Install Go 1.22+ and Git.
+https://github.com/migandhi/tunnel/releases
 
-Open PowerShell in the repository:
-
-```powershell
-go mod tidy
-go test ./...
-go vet ./...
-go build ./...
-```
-
-Build local Windows binaries:
-
-```powershell
-go build -o tunnel-server.exe ./cmd/tunnel-server
-go build -o tunnel-client.exe ./cmd/tunnel-client
-```
-
-The server binary is normally deployed to Linux; the client binary is what
-Windows users run.
-
-## Push to GitHub
-
-```powershell
-git init
-git add .
-git commit -m "Initial tunnel release"
-git branch -M main
-git remote add origin https://github.com/migandhi/tunnel-software.git
-git push -u origin main
-```
-
-Do not commit:
-
-- `.env`
-- `*.db`
-- certificates
-- tokens
-- private keys
-- production configuration
-
-## Build release binaries
-
-On a Linux/macOS machine with Make:
-
-```bash
-make test
-make vet
-make release
-```
-
-The `dist/` directory contains:
+Linux server binaries:
 
 ```text
 tunnel-server-linux-amd64
 tunnel-server-linux-arm64
+```
+
+Client binaries:
+
+```text
 tunnel-client-linux-amd64
 tunnel-client-linux-arm64
-tunnel-client-darwin-amd64
-tunnel-client-darwin-arm64
 tunnel-client-windows-amd64.exe
 tunnel-client-windows-arm64.exe
+tunnel-client-darwin-amd64
+tunnel-client-darwin-arm64
+```
+
+## Verify Release Checksums
+
+Each release contains:
+
+```text
 SHA256SUMS
 ```
 
-Create a GitHub Release such as `v1.0.0` and upload the required binaries.
-
-The installer expects the exact filenames above.
-
-## Server installation
-
-On the Ubuntu VPS:
+On Linux:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/migandhi/tunnel-software/main/deploy/install.sh
-less install.sh
-sudo bash install.sh
+sha256sum -c SHA256SUMS
 ```
 
-The installer asks for:
+On Windows PowerShell:
 
-- base tunnel domain
-- ACME email
-- admin username
-- admin password
+```powershell
+Get-FileHash .\tunnel-client-windows-amd64.exe -Algorithm SHA256
+```
 
-It creates:
+Compare the resulting hash with the corresponding value in `SHA256SUMS`.
+
+## Server Installation
+
+### 1. Prepare Ubuntu
+
+```bash
+apt update
+apt upgrade -y
+apt install -y ufw ca-certificates
+```
+
+### 2. Create directories
+
+```bash
+mkdir -p /etc/tunnel
+mkdir -p /var/lib/tunnel/certs
+```
+
+### 3. Install the server binary
+
+Copy the release binary to:
 
 ```text
 /usr/local/bin/tunnel-server
-/etc/tunnel/server.env
-/etc/systemd/system/tunnel-server.service
-/var/lib/tunnel/tunnel.db
-/var/lib/tunnel/certs/
 ```
 
-Check the service:
+Then:
 
 ```bash
-systemctl status tunnel-server
-journalctl -u tunnel-server -f
+chmod 755 /usr/local/bin/tunnel-server
+/usr/local/bin/tunnel-server version
+```
+
+Example:
+
+```text
+v1.0.1
+```
+
+## Server Configuration
+
+Create:
+
+```text
+/etc/tunnel/server.env
+```
+
+Example:
+
+```ini
+TUNNEL_DOMAIN=tun.example.com
+TUNNEL_ACME_EMAIL=admin@example.com
+TUNNEL_DATA_DIR=/var/lib/tunnel
+TUNNEL_TLS_MODE=auto
+TUNNEL_TCP_PORT_MIN=20000
+TUNNEL_TCP_PORT_MAX=20249
+TUNNEL_MAX_STREAMS=128
+TUNNEL_STREAM_WINDOW_KB=256
+TUNNEL_ADMIN_USER=admin
+TUNNEL_ADMIN_PASS_HASH=$2a$12$YOUR_BCRYPT_HASH
+```
+
+Generate a bcrypt hash:
+
+```bash
+tunnel-server hash-password
+```
+
+Do not store the plaintext admin password in the server configuration.
+
+Protect the configuration:
+
+```bash
+chmod 600 /etc/tunnel/server.env
 ```
 
 ## Firewall
 
-Open:
+Allow:
 
 ```text
 22/tcp
@@ -194,17 +291,104 @@ Open:
 20000-20249/tcp
 ```
 
-Do not open 9800.
+Example:
 
-If using DigitalOcean Cloud Firewall, configure the same ports there.
+```bash
+ufw allow 22/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw allow 7000/tcp
+ufw allow 20000:20249/tcp
+ufw --force enable
+ufw status
+```
 
-## Admin UI
+Do **not** expose port 9800 publicly.
 
-The admin UI listens on:
+## systemd Service
+
+Create:
+
+```text
+/etc/systemd/system/tunnel-server.service
+```
+
+```ini
+[Unit]
+Description=Tunnel Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tunnel
+EnvironmentFile=/etc/tunnel/server.env
+ExecStart=/usr/local/bin/tunnel-server run
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Create the unprivileged service account:
+
+```bash
+useradd --system --no-create-home --shell /usr/sbin/nologin tunnel
+```
+
+Give it ownership of application data:
+
+```bash
+chown -R tunnel:tunnel /var/lib/tunnel
+```
+
+Allow the binary to bind ports 80 and 443 without running the process as root:
+
+```bash
+setcap 'cap_net_bind_service=+ep' /usr/local/bin/tunnel-server
+```
+
+Verify:
+
+```bash
+getcap /usr/local/bin/tunnel-server
+```
+
+Expected:
+
+```text
+/usr/local/bin/tunnel-server cap_net_bind_service=ep
+```
+
+Enable and start:
+
+```bash
+systemctl daemon-reload
+systemctl enable tunnel-server
+systemctl start tunnel-server
+systemctl status tunnel-server --no-pager
+```
+
+## Server Ports
+
+| Port | Purpose | Public |
+|---|---|---|
+| 80 | HTTP redirect / ACME | Yes |
+| 443 | HTTPS tunnel traffic | Yes |
+| 7000 | Client control connection | Yes |
+| 9800 | Admin UI | No |
+| 20000-20249 | TCP tunnels | Yes |
+
+The admin UI listens only on:
 
 ```text
 127.0.0.1:9800
 ```
+
+## Admin UI
+
+The admin interface is intentionally not exposed publicly.
 
 Create an SSH tunnel from your Windows PC:
 
@@ -212,60 +396,123 @@ Create an SSH tunnel from your Windows PC:
 ssh -L 9800:127.0.0.1:9800 root@YOUR_VPS_IP
 ```
 
-Then browse:
+Leave the SSH session running.
+
+Open:
 
 ```text
 http://127.0.0.1:9800
 ```
 
-Create a user. The authentication token is shown once; only its SHA-256 hash
-is stored in SQLite.
+Log in using the configured admin username and password.
 
-## First HTTP tunnel
+The admin interface can manage users, plans, expiry, bandwidth limits,
+enable/disable state, tokens, token reset, bandwidth reset, and TCP ports.
 
-Run a local web service on port 8000.
+## Creating a Tunnel User
 
-Then:
+Create a user through the admin interface.
 
-```powershell
-.	unnel-client.exe http 8000 --server tun.example.com:7000 --token tk_xxxxx
+The server displays the authentication token once:
+
+```text
+tk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-The client prints the public URL:
+Store the token securely.
+
+Only the token hash is stored by the server. If a token is lost, reset it
+from the admin interface.
+
+## HTTP Tunnel
+
+Start a local HTTP service:
+
+```powershell
+python -m http.server 8000
+```
+
+Verify:
+
+```powershell
+curl.exe http://localhost:8000
+```
+
+Start the client:
+
+```powershell
+.\tunnel-client-windows-amd64.exe http 8000 `
+  --server tun.example.com:7000 `
+  --token 'YOUR_TOKEN'
+```
+
+The client should display a public URL such as:
 
 ```text
 https://myapp.tun.example.com
 ```
 
-## TCP tunnel
+Open that URL in a browser.
 
-Assign the user a TCP port in the admin UI.
-
-For example, if the assigned port is 20001:
-
-```powershell
-.	unnel-client.exe tcp 25565 --server tun.example.com:7000 --token tk_xxxxx
-```
-
-The public endpoint is:
+Traffic flows:
 
 ```text
-tun.example.com:20001
+Browser
+   |
+HTTPS :443
+   |
+Tunnel Server
+   |
+TLS control connection
+   |
+Tunnel Client
+   |
+127.0.0.1:8000
 ```
 
-## Client configuration file
+## TCP Tunnel
 
-Create:
+A TCP user must have an assigned TCP port, for example `20000`.
+
+Start a local TCP service on port `25565`, then:
+
+```powershell
+.\tunnel-client-windows-amd64.exe tcp 25565 `
+  --server tun.example.com:7000 `
+  --token 'YOUR_TOKEN'
+```
+
+The client displays:
+
+```text
+Public endpoint: tun.example.com:20000
+```
+
+Connect to:
+
+```text
+tun.example.com:20000
+```
+
+Traffic is forwarded to:
+
+```text
+127.0.0.1:25565
+```
+
+## Client Configuration File
+
+The client can use:
 
 ```text
 ~/.tunnel/config
 ```
 
-with:
+Example:
 
-```text
+```ini
 server = tun.example.com:7000
-token = tk_xxxxx
+token = tk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 Then:
@@ -280,10 +527,11 @@ or:
 tunnel-client tcp 25565
 ```
 
-Command-line flags take precedence over environment variables and config-file
-values.
+Command-line options take precedence over configuration-file values.
 
-## Client environment variables
+## Client Environment Variables
+
+Supported variables:
 
 ```text
 TUNNEL_SERVER
@@ -291,97 +539,79 @@ TUNNEL_TOKEN
 TUNNEL_NO_TLS=1
 ```
 
-Do not use `TUNNEL_NO_TLS` in production.
+Do not use `TUNNEL_NO_TLS=1` in production. It is intended only for
+development and local testing.
 
-## Server configuration
+## TLS
 
-Important variables:
+Production control connections use TLS:
 
 ```text
-TUNNEL_DOMAIN
-TUNNEL_ACME_EMAIL
-TUNNEL_ADMIN_USER
-TUNNEL_ADMIN_PASS_HASH
-TUNNEL_DATA_DIR
-TUNNEL_TLS_MODE
-TUNNEL_TCP_PORT_MIN
-TUNNEL_TCP_PORT_MAX
-TUNNEL_MAX_STREAMS
-TUNNEL_STREAM_WINDOW_KB
+Client → TLS → :7000
 ```
 
-TLS modes:
+Public HTTP tunnels use HTTPS:
 
-- `auto` — Let's Encrypt
-- `static` — your certificate
-- `off` — development only
+```text
+Internet → HTTPS :443
+```
 
-## Security model
+When:
 
-Implemented:
+```ini
+TUNNEL_TLS_MODE=auto
+```
 
-- 192-bit random tokens
-- SHA-256 token storage
-- TLS control channel
-- TLS public HTTPS
-- handshake timeout
-- handshake size limit
-- control connection rate limiting
-- bcrypt admin password
-- admin rate limiting
-- CSRF protection
-- strict subdomain validation
-- parameterized SQLite queries
-- bounded yamux stream windows
-- per-tunnel concurrent stream limits
-- TCP idle timeout
-- restricted TCP port range
-- localhost-only admin interface
-- systemd hardening
-- audit log
+the server obtains and manages certificates using ACME/Let's Encrypt.
 
-The VPS operator can see tunneled plaintext after TLS termination. This is
-inherent to a reverse-proxy tunnel architecture.
+The domain must resolve correctly before certificate issuance.
 
-## Bandwidth
+## Development Mode
 
-Traffic through HTTP and TCP tunnel streams is counted.
+For local development, the server can run without TLS:
 
-Counters are accumulated in memory and periodically flushed to SQLite. The
-enforcer disconnects disabled, expired, or over-limit accounts.
+```powershell
+$env:TUNNEL_DEV="1"
+$env:TUNNEL_ADMIN_USER="admin"
+$env:TUNNEL_ADMIN_PASS_HASH="YOUR_BCRYPT_HASH"
 
-Because persistence is periodic, a sudden process failure can lose the most
-recent unflushed accounting interval.
+.\tunnel-server-local.exe run
+```
 
-## Subscriptions
+The development server uses:
 
-There is intentionally no payment gateway.
+```text
+HTTP proxy: 8080
+Admin UI:   127.0.0.1:9800
+Control:    7000
+```
 
-The admin controls:
+The client can connect using:
 
-- plan label
-- start/expiry
-- bandwidth limit
-- enable/disable
-- token reset
-- bandwidth reset
-- TCP port
+```powershell
+.\tunnel-client-local.exe http 8000 `
+  --server localhost:7000 `
+  --token 'YOUR_TOKEN' `
+  --no-tls
+```
 
-A future billing system can call the same store operations.
+Development mode should **never be exposed to the public internet**.
 
-## Upgrades
+## Building from Source
 
-Use an explicit version for production:
+Requirements:
+
+- Go 1.22+
+- Git
+
+Clone:
 
 ```bash
-sudo bash deploy/upgrade.sh v1.1.0
+git clone https://github.com/migandhi/tunnel.git
+cd tunnel
 ```
 
-The script backs up the binary and SQLite database before upgrading.
-
-## Testing
-
-Before deployment:
+Run:
 
 ```bash
 go mod tidy
@@ -390,58 +620,265 @@ go vet ./...
 go build ./...
 ```
 
-Then manually test:
+## Windows Local Build
+
+Set the target:
+
+```powershell
+$env:GOOS="windows"
+$env:GOARCH="amd64"
+$env:CGO_ENABLED="0"
+```
+
+Build the server:
+
+```powershell
+go build -o tunnel-server-local.exe ./cmd/tunnel-server
+```
+
+Build the client:
+
+```powershell
+go build -o tunnel-client-local.exe ./cmd/tunnel-client
+```
+
+Check:
+
+```powershell
+.\tunnel-server-local.exe --help
+.\tunnel-client-local.exe --help
+```
+
+## Cross-Platform Release Builds
+
+The release workflow builds:
+
+```text
+tunnel-server-linux-amd64
+tunnel-server-linux-arm64
+
+tunnel-client-linux-amd64
+tunnel-client-linux-arm64
+
+tunnel-client-darwin-amd64
+tunnel-client-darwin-arm64
+
+tunnel-client-windows-amd64.exe
+tunnel-client-windows-arm64.exe
+```
+
+Release binaries are generated by GitHub Actions when a tag matching `v*` is
+pushed.
+
+Example:
+
+```bash
+git tag v1.0.2
+git push origin v1.0.2
+```
+
+## Testing
+
+Before releasing:
+
+```bash
+go mod tidy
+go test ./...
+go vet ./...
+go build ./...
+```
+
+Manual integration testing should include:
 
 1. HTTP tunnel
-2. HTTPS certificate issuance
+2. HTTPS certificate
 3. WebSockets
-4. large file transfer
-5. client reconnect
-6. server restart
-7. account expiry
-8. bandwidth enforcement
-9. token reset
-10. account disable
+4. Large file transfer
+5. Client reconnect
+6. Server restart
+7. Account expiry
+8. Bandwidth enforcement
+9. Token reset
+10. Account disable
 11. TCP forwarding
 12. TCP idle timeout
 
-## Development mode
+## Production Verification
 
-Development mode disables TLS and moves the HTTP proxy to port 8080:
-
-```bash
-TUNNEL_DEV=1 TUNNEL_ADMIN_PASS_HASH='<bcrypt hash>' go run ./cmd/tunnel-server run
-```
-
-Client:
+Check the service:
 
 ```bash
-go run ./cmd/tunnel-client http 8000 --server localhost:7000 --token tk_xxxxx --no-tls
+systemctl is-enabled tunnel-server
+systemctl is-active tunnel-server
 ```
 
-Use this only for local testing.
+Check listening ports:
+
+```bash
+ss -tulpn | grep -E ':80|:443|:7000|:9800'
+```
+
+Expected:
+
+```text
+*:80
+*:443
+*:7000
+127.0.0.1:9800
+```
+
+Verify HTTPS:
+
+```bash
+curl -I https://tun.example.com
+```
+
+Verify HTTP redirect:
+
+```bash
+curl -I http://tun.example.com
+```
+
+The HTTP endpoint should redirect to HTTPS.
+
+## Security Model
+
+Implemented protections include:
+
+- 192-bit random authentication tokens
+- SHA-256 token storage
+- TLS control channel
+- TLS public HTTPS
+- Handshake timeout
+- Handshake size limit
+- Control connection rate limiting
+- bcrypt admin password
+- Admin rate limiting
+- CSRF protection
+- Strict subdomain validation
+- Parameterized SQLite queries
+- Bounded yamux stream windows
+- Per-tunnel concurrent stream limits
+- TCP idle timeout
+- Restricted TCP port range
+- Localhost-only admin interface
+- systemd service isolation through a dedicated user
+- `CAP_NET_BIND_SERVICE` instead of running the server as root
+- Audit logging
+
+The VPS operator can see tunneled plaintext after TLS termination. This is
+inherent to a reverse-proxy tunnel architecture.
+
+## Bandwidth
+
+Traffic through HTTP and TCP tunnel streams is counted.
+
+Counters are accumulated in memory and periodically flushed to SQLite.
+
+The enforcer disconnects accounts that are disabled, expired, or over their
+bandwidth limit.
+
+Because persistence is periodic, a sudden process failure can lose the most
+recent unflushed accounting interval.
+
+## Subscriptions
+
+There is intentionally no payment gateway in the tunnel server.
+
+The admin controls:
+
+- Plan label
+- Start date
+- Expiry date
+- Bandwidth limit
+- Enable/disable state
+- Token reset
+- Bandwidth reset
+- TCP port
+
+A future billing system can integrate with the same store operations.
+
+## Upgrades
+
+Use an explicit release version:
+
+```bash
+sudo bash deploy/upgrade.sh v1.1.0
+```
+
+The upgrade process should back up the binary and SQLite database before
+replacing the running version.
+
+Always verify after an upgrade:
+
+```bash
+systemctl status tunnel-server --no-pager
+journalctl -u tunnel-server -n 50 --no-pager
+```
+
+## Data and Configuration
+
+Production files:
+
+```text
+/usr/local/bin/tunnel-server
+/etc/tunnel/server.env
+/etc/systemd/system/tunnel-server.service
+/var/lib/tunnel/tunnel.db
+/var/lib/tunnel/certs/
+```
+
+Do not commit:
+
+```text
+.env
+*.db
+*.db-wal
+*.db-shm
+certs/
+private keys
+authentication tokens
+production passwords
+production configuration
+```
 
 ## Limitations
 
 This is a single-node system.
 
-A 1 GB VPS is intended for a modest number of light tunnels, not as a high-scale
-internet edge. CPU, memory, network transfer and abuse traffic are the practical
-limits.
+A 1 GB VPS is intended for a modest number of light tunnels, not a high-scale
+internet edge.
+
+Practical limits include CPU, RAM, network transfer, concurrent streams, VPS
+bandwidth, and abuse traffic.
 
 UDP is not supported.
 
-A very large L7 DDoS can overwhelm a small VPS.
+A sufficiently large Layer 7 attack can overwhelm a small VPS.
 
-The service operator is responsible for abuse handling and acceptable-use
-policies.
+The service operator is responsible for abuse handling, acceptable-use
+policies, user management, traffic monitoring, VPS security, domain security,
+and credential management.
 
-## Old deployment warning
+## Operational Recommendations
 
-If you are replacing the original tunnel project, treat all old credentials
-as compromised. Rotate the old admin password, old tunnel tokens and any old
-Razorpay credentials. Do not copy the old database into this implementation.
+For production:
+
+- Keep Ubuntu updated.
+- Use SSH keys rather than password authentication.
+- Keep port 9800 private.
+- Do not expose the SQLite database.
+- Do not commit tokens or passwords.
+- Rotate compromised tokens immediately.
+- Use strong admin credentials.
+- Back up `/var/lib/tunnel`.
+- Keep release binaries and checksums.
+- Monitor system resources.
+- Monitor `journalctl -u tunnel-server`.
+- Use the VPS provider firewall together with UFW where practical.
 
 ## License
 
-MIT.
+MIT License.
+
+See [LICENSE](LICENSE).
