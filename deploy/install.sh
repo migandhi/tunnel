@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="${TUNNEL_REPO:-migandhi/tunnel-software}"
+REPO="${TUNNEL_REPO:-migandhi/tunnel}"
 VERSION="${TUNNEL_VERSION:-latest}"
 BIN=/usr/local/bin/tunnel-server
 ENVF=/etc/tunnel/server.env
@@ -24,6 +24,7 @@ chown tunnel:tunnel /var/lib/tunnel
 chmod 750 /var/lib/tunnel
 
 if [ -f ./tunnel-server ]; then
+  say "Installing local ./tunnel-server binary"
   install -m 755 ./tunnel-server "$BIN"
 else
   if [ "$VERSION" = latest ]; then
@@ -31,9 +32,11 @@ else
   else
     URL="https://github.com/$REPO/releases/download/$VERSION/tunnel-server-linux-$GOARCH"
   fi
+  say "Downloading $URL"
   curl -fSL -o "$BIN" "$URL" || die "download failed: $URL"
   chmod 755 "$BIN"
 fi
+say "Installed: $("$BIN" version)"
 
 if [ ! -f "$ENVF" ]; then
   read -rp "Base tunnel domain (e.g. tun.example.com): " DOMAIN
@@ -65,11 +68,17 @@ DNSIP=$(getent hosts "$DOMAIN" | awk '{print $1}' | head -1 || true)
 if [ -n "$MYIP" ] && [ "$DNSIP" = "$MYIP" ]; then
   say "DNS OK: $DOMAIN -> $MYIP"
 else
-  warn "DNS check: $DOMAIN -> '${DNSIP:-nothing}', VPS -> '${MYIP:-unknown}'"
+  warn "DNS check: $DOMAIN -> '${DNSIP:-nothing}', this VPS -> '${MYIP:-unknown}'"
   warn "Create A records for $DOMAIN and *.$DOMAIN pointing to this VPS."
+  warn "HTTPS certificates will FAIL until DNS is correct."
 fi
 
-install -m 644 ./deploy/systemd/tunnel-server.service "$UNIT" 2>/dev/null || curl -fsSL -o "$UNIT" "https://raw.githubusercontent.com/$REPO/main/deploy/systemd/tunnel-server.service"
+if [ -f ./deploy/systemd/tunnel-server.service ]; then
+  install -m 644 ./deploy/systemd/tunnel-server.service "$UNIT"
+else
+  curl -fsSL -o "$UNIT" "https://raw.githubusercontent.com/$REPO/main/deploy/systemd/tunnel-server.service" \
+    || die "could not fetch systemd unit"
+fi
 
 systemctl daemon-reload
 systemctl enable tunnel-server >/dev/null
@@ -81,7 +90,7 @@ if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then
     ufw allow 80/tcp; ufw allow 443/tcp; ufw allow 7000/tcp; ufw allow 20000:20249/tcp
   fi
 else
-  warn "Open 80, 443, 7000 and 20000-20249 TCP in your firewall / cloud firewall."
+  warn "Open TCP 80, 443, 7000 and 20000-20249 in your firewall / cloud firewall."
 fi
 
 systemctl restart tunnel-server
@@ -89,14 +98,18 @@ sleep 2
 systemctl --no-pager --lines=8 status tunnel-server || true
 
 cat <<EOF
-Installed.
 
-Admin UI is localhost-only:
-  ssh -L 9800:127.0.0.1:9800 root@$DOMAIN
-Then open:
-  http://127.0.0.1:9800
+============================================================
+ Installed successfully.
 
-Config: /etc/tunnel/server.env
-Data:   /var/lib/tunnel
-Logs:   journalctl -u tunnel-server -f
+ Admin dashboard (localhost-only). From your own computer:
+   ssh -L 9800:127.0.0.1:9800 root@$DOMAIN
+ then open:
+   http://127.0.0.1:9800
+
+ Config:  /etc/tunnel/server.env
+ Data:    /var/lib/tunnel
+ Logs:    journalctl -u tunnel-server -f
+ Upgrade: sudo bash upgrade.sh
+============================================================
 EOF
