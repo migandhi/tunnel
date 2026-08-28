@@ -44,7 +44,15 @@ https://myapp.tun.example.com  ──►  your laptop's localhost:8000
 - [License](#license)
 
 ---
+## Documentation
 
+| Doc | For whom |
+|---|---|
+| [Usage Guide](docs/USAGE-GUIDE.md) | Tunnel users & admins — day-to-day usage and acceptable use |
+| [Functional Logic](docs/FUNCTIONAL-LOGIC.md) | Developers — how the system works internally |
+| [Business Logic](docs/BUSINESS-LOGIC.md) | Operators — accounts, plans, limits, enforcement |
+| [Testing Guide](TESTING.md) | Everyone — 20-minute end-to-end test plan |
+---
 ## How It Works
 
 ```
